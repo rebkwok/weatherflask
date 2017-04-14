@@ -30,41 +30,45 @@ def sendmsg(to, text):
 
 @app.route('/')
 def show_weather():
-    place = request.args.get('text')
-    if not place:
-        place = request.args.get('place', 'Bonnyrigg,gb')
+    text = request.args.get('text')
+    place = request.args.get('place')
+    place = text or place or 'Bonnyrigg,gb'
 
-    observation = owm.weather_at_place(place)
-    weather = observation.get_weather()
-    placename = observation.get_location().get_name()
-    current_weather = "Current weather in {}: {}".format(
-            placename,
-            weather.get_detailed_status()
-        )
-
-    # 5 days forecast in 3 hr intervals
-    forecast = owm.three_hours_forecast(place)
-    next_3 = pyowm.timeutils.next_three_hours()
-    willberainy = forecast.will_be_rainy_at(next_3)
-    if willberainy:
-        rain_forecast = "Rain is forecast in next 3 hrs in {}".format(
-            placename
-        )
+    error = None
+    context = {}
+    try:
+        observation = owm.weather_at_place(place)
+    except pyowm.exceptions.not_found_error.NotFoundError:
+        current_weather = None
+        error = 'Place not found'
+        context['error'] = error
     else:
-        rain_forecast = "Rain is not forecast in the next 3 hrs in {}".format(
-            placename
+        weather = observation.get_weather()
+        placename = observation.get_location().get_name()
+        country = observation.get_location().get_country()
+        current_weather = "Current weather in {}: {}".format(
+                placename,
+                weather.get_detailed_status()
+            )
+
+        # 5 days forecast in 3 hr intervals
+        forecast = owm.three_hours_forecast(place)
+        next_3 = pyowm.timeutils.next_three_hours()
+        willberainy = forecast.will_be_rainy_at(next_3)
+        rain_forecast = "Rain is {}forecast in the next 3 hrs.".format(
+            'not ' if not willberainy else ''
         )
+        context['placename'] = placename
+        context['country'] = country
+        context['current'] = current_weather
+        context['rain'] = rain_forecast
 
     to = request.args.get('msisdn')
+    msg = current_weather or error
     if to:
         if to in ALLOWED_NUMBERS:
-            return sendmsg(to, current_weather)
+            return sendmsg(to, msg)
         else:
-            return 'Number not allowed'
+            return 'Phone number not allowed'
     else:
-        return render_template(
-            'weather.html',
-            placename=placename,
-            current=current_weather,
-            rain=rain_forecast
-        )
+        return render_template('weather.html', **context)
