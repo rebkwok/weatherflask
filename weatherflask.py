@@ -46,25 +46,24 @@ def show_weather():
         weather = observation.get_weather()
         placename = observation.get_location().get_name()
         country = observation.get_location().get_country()
-        current_weather = "Current weather in {}: {}".format(
-                placename,
-                weather.get_detailed_status()
-            )
+        current_weather = weather.get_detailed_status()
+        temp = weather.get_temperature('celsius')['temp']
 
         # 5 days forecast in 3 hr intervals
         forecast = owm.three_hours_forecast(place)
         next_3 = pyowm.timeutils.next_three_hours()
         willberainy = forecast.will_be_rainy_at(next_3)
-        rain_forecast = "Rain is {}forecast in the next 3 hrs.".format(
-            'not ' if not willberainy else ''
-        )
+
         context['placename'] = placename
         context['country'] = country
         context['current'] = current_weather
-        context['rain'] = rain_forecast
+        context['temp'] = temp
+        context['rain'] = willberainy
 
     to = request.args.get('msisdn')
-    msg = current_weather or error
+    msg =  "Current weather in {}: {}; temp {}C".format(
+                placename, current_weather, temp
+            ) if current_weather else error
     if to:
         if to in ALLOWED_NUMBERS:
             return sendmsg(to, msg)
